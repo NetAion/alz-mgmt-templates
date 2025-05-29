@@ -33,7 +33,8 @@
             terraform \
             -chdir="${{inputs.root_module_folder_relative_path}}" \
             fmt \
-            -check
+            -check \
+            -recursive
   
         - name: Terraform Init
           run: |
