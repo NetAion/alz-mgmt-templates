@@ -80,9 +80,10 @@
 
         - name: Install tf-summarize
           run: |
-            curl -sL https://github.com/dineshba/tf-summarize/releases/latest/download/tf-summarize-linux-amd64 -o tf-summarize
-            chmod +x tf-summarize
-            sudo mv tf-summarize /usr/local/bin/                  
+            curl -sL -o tf-summarize.deb https://github.com/dineshba/tf-summarize/releases/download/v0.3.14/tf-summarize_0.3.14_linux_amd64.deb
+            sudo dpkg -i tf-summarize.deb
+            tf-summarize --version
+            rm tf-summarize.deb
   
         - name: Terraform Init
           run: |
