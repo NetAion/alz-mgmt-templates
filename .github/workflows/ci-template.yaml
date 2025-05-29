@@ -82,7 +82,7 @@
           run: |
             curl -sL -o tf-summarize.deb https://github.com/dineshba/tf-summarize/releases/download/v0.3.14/tf-summarize_0.3.14_linux_amd64.deb
             sudo dpkg -i tf-summarize.deb
-            tf-summarize --version
+            tf-summarize -v
             rm tf-summarize.deb
   
         - name: Terraform Init
