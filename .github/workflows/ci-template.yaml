@@ -27,6 +27,12 @@
           with:
             terraform_wrapper: false
             terraform_version: ${{ inputs.terraform_cli_version }}
+
+        - name: Install tf-summarize
+          run: |
+            curl -sL https://github.com/dineshba/tf-summarize/releases/latest/download/tf-summarize-linux-amd64 -o tf-summarize
+            chmod +x tf-summarize
+            sudo mv tf-summarize /usr/local/bin/          
   
         - name: Terraform Format Check
           run: |
@@ -102,7 +108,7 @@
               echo "summary=" >> $GITHUB_OUTPUT
             else
               echo "no_changes=false" >> $GITHUB_OUTPUT
-              terraform show -json tfplan | tf-summarize -tree > tf-summary.txt
+              terraform show -json tfplan | tf-summarize -tree | tee tf-summary.txt
               echo "summary<<EOF" >> $GITHUB_OUTPUT
               cat tf-summary.txt >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
