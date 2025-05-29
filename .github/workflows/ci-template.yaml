@@ -26,13 +26,7 @@
           uses: hashicorp/setup-terraform@v3
           with:
             terraform_wrapper: false
-            terraform_version: ${{ inputs.terraform_cli_version }}
-
-        - name: Install tf-summarize
-          run: |
-            curl -sL https://github.com/dineshba/tf-summarize/releases/latest/download/tf-summarize-linux-amd64 -o tf-summarize
-            chmod +x tf-summarize
-            sudo mv tf-summarize /usr/local/bin/          
+            terraform_version: ${{ inputs.terraform_cli_version }}    
   
         - name: Terraform Format Check
           run: |
@@ -83,6 +77,12 @@
           with:
             terraform_wrapper: false
             terraform_version: ${{ inputs.terraform_cli_version }}
+
+        - name: Install tf-summarize
+          run: |
+            curl -sL https://github.com/dineshba/tf-summarize/releases/latest/download/tf-summarize-linux-amd64 -o tf-summarize
+            chmod +x tf-summarize
+            sudo mv tf-summarize /usr/local/bin/                  
   
         - name: Terraform Init
           run: |
