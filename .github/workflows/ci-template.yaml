@@ -94,28 +94,61 @@
             terraform \
             -chdir="${{inputs.root_module_folder_relative_path}}" \
             plan \
-            -input=false
-  
+            -input=false \
+            -out=tfplan > tfplan_output.txt
+
+            if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output.txt; then
+              echo "no_changes=true" >> $GITHUB_OUTPUT
+              echo "summary=" >> $GITHUB_OUTPUT
+            else
+              echo "no_changes=false" >> $GITHUB_OUTPUT
+              terraform show -json tfplan | tf-summarize -tree > tf-summary.txt
+              echo "summary<<EOF" >> $GITHUB_OUTPUT
+              cat tf-summary.txt >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+    
         - name: Update Pull Request
           if: (success() || failure()) && github.event_name == 'pull_request'
           uses: actions/github-script@v6
           with:
             github-token: ${{ secrets.GITHUB_TOKEN }}
             script: |
-              const output = `#### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
-  
-              <details><summary>Run details</summary>
-  
-              The plan was a ${{ steps.plan.outcome }}. See the action for more details.
-  
+              const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
+              let body = '';
+
+              if (noChanges) {
+                body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`, \`no changes detected\`
+              <details><summary>Run Outcome and Plan Details</summary>
+
+              - The plan was a ${{ steps.plan.outcome }}.
+              - ✅ Terraform has compared your real infrastructure against your configuration and found no differences, so no changes will be deployed in the CD pipeline.
+              - See the action for more details.
+
               </details>
-  
+
               *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-  
+              } else {
+                const tfSummary = `${{ steps.plan.outputs.summary }}`;
+                body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+              <details><summary>Run Outcome and Plan Details</summary>
+
+              - The plan was a ${{ steps.plan.outcome }}.
+              - Changes to be deployed in the CD pipeline:
+              \`\`\`
+              ${tfSummary}
+              \`\`\`
+              - See the action for more details.
+
+              </details>
+
+                *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+              }
+
               github.rest.issues.createComment({
                 issue_number: context.issue.number,
                 owner: context.repo.owner,
                 repo: context.repo.repo,
-                body: output
-              })
+                body
+              });
   
