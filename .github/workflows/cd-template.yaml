@@ -22,7 +22,7 @@ jobs:
     runs-on:
       ubuntu-latest
     concurrency: mgmt-tfstate
-    environment: alz-mgmt-plan
+    environment: prod-ci-plan
     permissions:
       id-token: write
       contents: read
