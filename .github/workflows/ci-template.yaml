@@ -130,7 +130,7 @@
 
               if (noChanges) {
                 body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`, \`no changes detected\`
-              <details><summary>Run Outcome and Plan Details</summary>
+              <details><summary>Please check the plan details</summary>
 
               - The plan was a ${{ steps.plan.outcome }}.
               - ✅ Terraform has compared your real infrastructure against your configuration and found no differences, so no changes will be deployed in the CD pipeline.
@@ -142,14 +142,20 @@
               } else {
                 const tfSummary = `${{ steps.plan.outputs.summary }}`;
                 body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
-              <details><summary>Run Outcome and Plan Details</summary>
+              <details><summary>Please check the plan details</summary>
 
               - The plan was a ${{ steps.plan.outcome }}.
               - Changes to be deployed in the CD pipeline:
               \`\`\`
               ${tfSummary}
               \`\`\`
-              - See the action for more details.
+              - Where:
+                - ✅ indicates a resource that will be created.
+                - ⚠️ indicates a resource that will be updated in place.
+                - ❌ indicates a resource that will be destroyed.
+                - If you are happy with the plan, please approve the pull request to trigger the CD pipeline deployment to production.
+                - If you are not happy with the plan, please comment on the pull request to discuss it.
+              - See the CI action for more details.
 
               </details>
 
