@@ -110,7 +110,10 @@
               echo "summary=" >> $GITHUB_OUTPUT
             else
               echo "no_changes=false" >> $GITHUB_OUTPUT
-              terraform show -json tfplan | tf-summarize -tree | tee tf-summary.txt
+              terraform show -json tfplan | tf-summarize -tree \
+              | sed -r "s/\x1B\[[0-9;]*[mK]//g" \
+              | sed -r "s/\(\+\)/✅/g; s/\(\~\)/⚠️/g; s/\(\-\)/❌/g" \
+              | tee tf-summary.txt
               echo "summary<<EOF" >> $GITHUB_OUTPUT
               cat tf-summary.txt >> $GITHUB_OUTPUT
               echo "EOF" >> $GITHUB_OUTPUT
