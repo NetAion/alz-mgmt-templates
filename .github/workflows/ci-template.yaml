@@ -133,7 +133,9 @@
               <details><summary>Please check the plan details</summary>
 
               - The plan was a ${{ steps.plan.outcome }}.
-              - ✅ Terraform has compared your real infrastructure against your configuration and found no differences, so no changes will be deployed in the CD pipeline.
+              - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
+              - If you are happy with the plan, please approve the pull request to trigger no deployment of changes to production in the CD pipeline.
+              - If you are not happy with the plan, please comment on the pull request to discuss it.
               - See the action for more details.
 
               </details>
@@ -145,7 +147,7 @@
               <details><summary>Please check the plan details</summary>
 
               - The plan was a ${{ steps.plan.outcome }}.
-              - Changes to be deployed in the CD pipeline:
+              - Changes to be deployed:
               \`\`\`
               ${tfSummary}
               \`\`\`
@@ -153,8 +155,8 @@
                 - ✅ indicates a resource that will be created.
                 - ⚠️ indicates a resource that will be updated in place.
                 - ❌ indicates a resource that will be destroyed.
-                - If you are happy with the plan, please approve the pull request to trigger the CD pipeline deployment to production.
-                - If you are not happy with the plan, please comment on the pull request to discuss it.
+              - If you are happy with the plan, please approve the pull request to trigger deployment of these changes to production in the CD pipeline.
+              - If you are not happy with the plan, please comment on the pull request to discuss it.
               - See the CI action for more details.
 
               </details>
