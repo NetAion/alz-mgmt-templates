@@ -130,13 +130,13 @@
 
               if (noChanges) {
                 body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`, \`no changes detected\`
-              <details><summary>Please check the plan details</summary>
+              <details><summary>Please check the plan details:</summary>
 
               - The plan was a ${{ steps.plan.outcome }}.
               - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
-              - If you are happy with the plan, please approve the pull request to trigger no deployment of changes to production in the CD pipeline.
+              - If you are happy with the plan, please approve the pull request to trigger the CD pipeline that will deploy no changes to production.
               - If you are not happy with the plan, please comment on the pull request to discuss it.
-              - See the action for more details.
+              - See the CI action for more detailed logs if needed.
 
               </details>
 
@@ -144,7 +144,7 @@
               } else {
                 const tfSummary = `${{ steps.plan.outputs.summary }}`;
                 body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
-              <details><summary>Please check the plan details</summary>
+              <details><summary>Please check the plan details:</summary>
 
               - The plan was a ${{ steps.plan.outcome }}.
               - Changes to be deployed:
@@ -155,9 +155,9 @@
                 - ✅ indicates a resource that will be created.
                 - ⚠️ indicates a resource that will be updated in place.
                 - ❌ indicates a resource that will be destroyed.
-              - If you are happy with the plan, please approve the pull request to trigger deployment of these changes to production in the CD pipeline.
+              - If you are happy with the plan, please approve the pull request to trigger the CD pipeline that will deploy these changes to production.
               - If you are not happy with the plan, please comment on the pull request to discuss it.
-              - See the CI action for more details.
+              - See the CI action for more detailed logs if needed.
 
               </details>
 
