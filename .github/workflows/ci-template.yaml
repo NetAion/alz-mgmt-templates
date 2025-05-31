@@ -103,7 +103,7 @@ jobs:
           -chdir="${{inputs.root_module_folder_relative_path}}" \
           plan \
           -input=false \
-          -out=tfplan > tfplan_output.txt
+          -out=tfplan | tee tfplan_output.txt
 
           if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output.txt; then
             echo "no_changes=true" >> $GITHUB_OUTPUT
