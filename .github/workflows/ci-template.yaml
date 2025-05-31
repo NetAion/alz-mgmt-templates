@@ -132,42 +132,42 @@ jobs:
             if (planOutcome === 'success') {
               if (noChanges) {
                 body = `#### Terraform Plan 📖 \`${planOutcome}\`, no changes detected
-                <details><summary>Please check the plan details:</summary>
+            <details><summary>Please check the plan details:</summary>
 
-                - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
-                - 🔄 **Approve** this pull request to continue with the CD pipeline deployment (no changes will be applied).
-                - If you are not happy with the plan, please comment on the pull request to discuss it.
-                - See the CI action for more detailed logs if needed.
+            - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
+            - 🔄 **Approve** this pull request to continue with the CD pipeline deployment (no changes will be applied).
+            - If you are not happy with the plan, please comment on the pull request to discuss it.
+            - See the CI action for more detailed logs if needed.
 
-                </details>
+            </details>
 
-                *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
               } else {
                 const tfSummary = `${{ steps.plan.outputs.summary }}`;
                 body = `#### Terraform Plan 📖 \`${planOutcome}\`
-                <details><summary>Please check the plan details:</summary>
+            <details><summary>Please check the plan details:</summary>
 
-                - Changes to be deployed:
-                \`\`\`
-                ${tfSummary}
-                \`\`\`
-                - Where:
-                  - ✅ indicates a resource that will be created.
-                  - ⚠️ indicates a resource that will be updated in place.
-                  - ❌ indicates a resource that will be destroyed.
-                - 🔄 If you're happy with the plan, **approve the pull request** to continue with the CD pipeline and deploy the changes to production.
-                - If you're not happy with the plan, please comment on the pull request to discuss it.
-                - See the CI action for more detailed logs if needed.
+            - Changes to be deployed:
+            \`\`\`
+            ${tfSummary}
+            \`\`\`
+            - Where:
+              - ✅ indicates a resource that will be created.
+              - ⚠️ indicates a resource that will be updated in place.
+              - ❌ indicates a resource that will be destroyed.
+            - 🔄 If you're happy with the plan, **approve the pull request** to continue with the CD pipeline and deploy the changes to production.
+            - If you're not happy with the plan, please comment on the pull request to discuss it.
+            - See the CI action for more detailed logs if needed.
 
-                </details>
+            </details>
 
-                *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
               }
-            } else { # If the plan failed
+            } else {
               body = `#### Terraform Plan 📖 \`${planOutcome}\`
 
-              *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-            }
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            };
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
