@@ -1,173 +1,172 @@
 ---
-  name: Continuous Integration
-  on:
-    workflow_call:
-      inputs:
-        root_module_folder_relative_path:
-          description: 'Root Module Folder Relative Path'
-          default: '.'
-          type: string
-        terraform_cli_version:
-          description: 'Terraform CLI Version'
-          default: 'latest'
-          type: string
-  
-  jobs:
-    validate:
-      name: Validate Terraform
-      runs-on: ubuntu-latest
-      permissions:
-        contents: read 
-      steps:
-        - name: Checkout Code
-          uses: actions/checkout@v4
-  
-        - name: Install Terraform
-          uses: hashicorp/setup-terraform@v3
-          with:
-            terraform_wrapper: false
-            terraform_version: ${{ inputs.terraform_cli_version }}    
-  
-        - name: Terraform Format Check
-          run: |
-            terraform \
-            -chdir="${{inputs.root_module_folder_relative_path}}" \
-            fmt \
-            -check \
-            -recursive
-  
-        - name: Terraform Init
-          run: |
-            terraform \
-            -chdir="${{inputs.root_module_folder_relative_path}}" \
-            init \
-            -backend=false
-  
-        - name: Terraform Validate
-          run: |
-            terraform \
-            -chdir="${{inputs.root_module_folder_relative_path}}" \
-            validate
-  
-    plan:
-      name: Validate Terraform Plan
-      needs: validate
-      runs-on: ubuntu-latest
-      concurrency: mgmt2-tfstate
-      environment: prod-ci-plan # GitHub free tier does not support environments in private repos, but it is needed for OIDC authentication
-      permissions:
-        # NOTE: When modifying the token subject claims and adding `environment`.
-        # If the `id-token` permission is granted at the workflow level
-        # and the workflow has at least one job that does not specify an environment
-        # then the action will fail with an internal error.
-        id-token: write
-        contents: read
-        pull-requests: write
-      env:
-        ARM_CLIENT_ID: "${{ vars.AZURE_CLIENT_ID_CI }}"
-        ARM_SUBSCRIPTION_ID: "${{ vars.AZURE_SUBSCRIPTION_ID }}"
-        ARM_TENANT_ID: "${{ vars.AZURE_TENANT_ID }}"
-        ARM_USE_AZUREAD: true
-        ARM_USE_OIDC: true
-      steps:
-        - name: Checkout Code
-          uses: actions/checkout@v4
-  
-        - name: Install Terraform
-          uses: hashicorp/setup-terraform@v3
-          with:
-            terraform_wrapper: false
-            terraform_version: ${{ inputs.terraform_cli_version }}
+name: Continuous Integration
+on:
+  workflow_call:
+    inputs:
+      root_module_folder_relative_path:
+        description: 'Root Module Folder Relative Path'
+        default: '.'
+        type: string
+      terraform_cli_version:
+        description: 'Terraform CLI Version'
+        default: 'latest'
+        type: string
 
-        - name: Install tf-summarize
-          run: |
-            curl -sL -o tf-summarize.deb https://github.com/dineshba/tf-summarize/releases/download/v0.3.14/tf-summarize_0.3.14_linux_amd64.deb
-            sudo dpkg -i tf-summarize.deb
-            tf-summarize -v
-            rm tf-summarize.deb
-  
-        - name: Terraform Init
-          run: |
-            terraform \
-            -chdir="${{inputs.root_module_folder_relative_path}}" \
-            init \
-            -backend-config="resource_group_name=${{vars.BACKEND_AZURE_RESOURCE_GROUP_NAME}}" \
-            -backend-config="storage_account_name=${{vars.BACKEND_AZURE_STORAGE_ACCOUNT_NAME}}" \
-            -backend-config="container_name=${{vars.BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME}}" \
-            -backend-config="key=terraform.tfstate"
-  
-        - name: Terraform Plan
-          id: plan
-          run: |
-            terraform \
-            -chdir="${{inputs.root_module_folder_relative_path}}" \
-            plan \
-            -input=false \
-            -out=tfplan > tfplan_output.txt
+jobs:
+  validate:
+    name: Validate Terraform
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read 
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-            if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output.txt; then
-              echo "no_changes=true" >> $GITHUB_OUTPUT
-              echo "summary=" >> $GITHUB_OUTPUT
-            else
-              echo "no_changes=false" >> $GITHUB_OUTPUT
-              terraform show -json tfplan | tf-summarize -tree \
-              | sed -r "s/\x1B\[[0-9;]*[mK]//g" \
-              | sed -r "s/\(\+\)/✅/g; s/\(\~\)/⚠️/g; s/\(\-\)/❌/g" \
-              | tee tf-summary.txt
-              echo "summary<<EOF" >> $GITHUB_OUTPUT
-              cat tf-summary.txt >> $GITHUB_OUTPUT
-              echo "EOF" >> $GITHUB_OUTPUT
-            fi
-    
-        - name: Update Pull Request
-          if: (success() || failure()) && github.event_name == 'pull_request'
-          uses: actions/github-script@v6
-          with:
-            github-token: ${{ secrets.GITHUB_TOKEN }}
-            script: |
-              const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
-              let body = '';
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+          terraform_version: ${{ inputs.terraform_cli_version }}
 
-              if (noChanges) {
-                body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`, \`no changes detected\`
-              <details><summary>Please check the plan details:</summary>
+      - name: Terraform Format Check
+        run: |
+          terraform \
+          -chdir="${{inputs.root_module_folder_relative_path}}" \
+          fmt \
+          -check \
+          -recursive
 
-              - The plan was a ${{ steps.plan.outcome }}.
-              - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
-              - If you are happy with the plan, please approve the pull request to trigger the CD pipeline that will deploy no changes to production.
-              - If you are not happy with the plan, please comment on the pull request to discuss it.
-              - See the CI action for more detailed logs if needed.
+      - name: Terraform Init
+        run: |
+          terraform \
+          -chdir="${{inputs.root_module_folder_relative_path}}" \
+          init \
+          -backend=false
 
-              </details>
+      - name: Terraform Validate
+        run: |
+          terraform \
+          -chdir="${{inputs.root_module_folder_relative_path}}" \
+          validate
+
+  plan:
+    name: Validate Terraform Plan
+    needs: validate
+    runs-on: ubuntu-latest
+    concurrency: mgmt2-tfstate
+    environment: prod-ci-plan # GitHub free tier does not support environments in private repos, but it is needed for OIDC authentication
+    permissions:
+      # NOTE: When modifying the token subject claims and adding `environment`.
+      # If the `id-token` permission is granted at the workflow level
+      # and the workflow has at least one job that does not specify an environment
+      # then the action will fail with an internal error.
+      id-token: write
+      contents: read
+      pull-requests: write
+    env:
+      ARM_CLIENT_ID: "${{ vars.AZURE_CLIENT_ID_CI }}"
+      ARM_SUBSCRIPTION_ID: "${{ vars.AZURE_SUBSCRIPTION_ID }}"
+      ARM_TENANT_ID: "${{ vars.AZURE_TENANT_ID }}"
+      ARM_USE_AZUREAD: true
+      ARM_USE_OIDC: true
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+          terraform_version: ${{ inputs.terraform_cli_version }}
+
+      - name: Install tf-summarize
+        run: |
+          curl -sL -o tf-summarize.deb https://github.com/dineshba/tf-summarize/releases/download/v0.3.14/tf-summarize_0.3.14_linux_amd64.deb
+          sudo dpkg -i tf-summarize.deb
+          tf-summarize -v
+          rm tf-summarize.deb
+
+      - name: Terraform Init
+        run: |
+          terraform \
+          -chdir="${{inputs.root_module_folder_relative_path}}" \
+          init \
+          -backend-config="resource_group_name=${{vars.BACKEND_AZURE_RESOURCE_GROUP_NAME}}" \
+          -backend-config="storage_account_name=${{vars.BACKEND_AZURE_STORAGE_ACCOUNT_NAME}}" \
+          -backend-config="container_name=${{vars.BACKEND_AZURE_STORAGE_ACCOUNT_CONTAINER_NAME}}" \
+          -backend-config="key=terraform.tfstate"
+
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform \
+          -chdir="${{inputs.root_module_folder_relative_path}}" \
+          plan \
+          -input=false \
+          -out=tfplan > tfplan_output.txt
+
+          if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output.txt; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+            echo "summary=" >> $GITHUB_OUTPUT
+          else
+            echo "no_changes=false" >> $GITHUB_OUTPUT
+            terraform show -json tfplan | tf-summarize -tree \
+            | sed -r "s/\x1B\[[0-9;]*[mK]//g" \
+            | sed -r "s/\(\+\)/✅/g; s/\(\~\)/⚠️/g; s/\(\-\)/❌/g" \
+            | tee tf-summary.txt
+            echo "summary<<EOF" >> $GITHUB_OUTPUT
+            cat tf-summary.txt >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update Pull Request
+        if: (success() || failure()) && github.event_name == 'pull_request'
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
+            let body = '';
+
+            if (noChanges) {
+              body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`, \`no changes detected\`
+            <details><summary>Please check the plan details:</summary>
+
+            - The plan was a ${{ steps.plan.outcome }}.
+            - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
+            - If you are happy with the plan, please approve the pull request to trigger the CD pipeline that will deploy no changes to production.
+            - If you are not happy with the plan, please comment on the pull request to discuss it.
+            - See the CI action for more detailed logs if needed.
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            } else {
+              const tfSummary = `${{ steps.plan.outputs.summary }}`;
+              body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
+            <details><summary>Please check the plan details:</summary>
+
+            - The plan was a ${{ steps.plan.outcome }}.
+            - Changes to be deployed:
+            \`\`\`
+            ${tfSummary}
+            \`\`\`
+            - Where:
+              - ✅ indicates a resource that will be created.
+              - ⚠️ indicates a resource that will be updated in place.
+              - ❌ indicates a resource that will be destroyed.
+            - If you are happy with the plan, please approve the pull request to trigger the CD pipeline that will deploy these changes to production.
+            - If you are not happy with the plan, please comment on the pull request to discuss it.
+            - See the CI action for more detailed logs if needed.
+
+            </details>
 
               *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-              } else {
-                const tfSummary = `${{ steps.plan.outputs.summary }}`;
-                body = `#### Terraform Plan 📖 \`${{ steps.plan.outcome }}\`
-              <details><summary>Please check the plan details:</summary>
+            }
 
-              - The plan was a ${{ steps.plan.outcome }}.
-              - Changes to be deployed:
-              \`\`\`
-              ${tfSummary}
-              \`\`\`
-              - Where:
-                - ✅ indicates a resource that will be created.
-                - ⚠️ indicates a resource that will be updated in place.
-                - ❌ indicates a resource that will be destroyed.
-              - If you are happy with the plan, please approve the pull request to trigger the CD pipeline that will deploy these changes to production.
-              - If you are not happy with the plan, please comment on the pull request to discuss it.
-              - See the CI action for more detailed logs if needed.
-
-              </details>
-
-                *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-              }
-
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body
-              });
-  
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
