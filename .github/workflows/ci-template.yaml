@@ -104,6 +104,7 @@ jobs:
           plan \
           -input=false \
           -out=tfplan | tee tfplan_output.txt
+          
           cat tfplan_output.txt | sed -r "s/\x1B\[[0-9;]*[mK]//g" > tfplan_output_cleaned.txt
           if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output_cleaned.txt; then
             echo "no_changes=true" >> $GITHUB_OUTPUT
@@ -155,8 +156,9 @@ jobs:
               - ✅ indicates a resource that will be created.
               - ⚠️ indicates a resource that will be updated in place.
               - ❌ indicates a resource that will be destroyed.
-            - 🔄 If you're happy with the plan, **approve the pull request** to continue with the CD pipeline and deploy the changes to production.
+            - 🔄 If you're happy with the plan, **approve the pull request** to deploy the changes to production. 
             - If you're not happy with the plan, please comment on the pull request to discuss it.
+            - Note, there will be one further gate during the CD pipeline to confirm the plan before applying it.
             - See the CI action for more detailed logs if needed.
 
             </details>
