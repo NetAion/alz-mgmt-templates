@@ -104,8 +104,8 @@ jobs:
           plan \
           -input=false \
           -out=tfplan | tee tfplan_output.txt
-
-          if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output.txt; then
+          cat tfplan_output.txt | sed -r "s/\x1B\[[0-9;]*[mK]//g" > tfplan_output_cleaned.txt
+          if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output_cleaned.txt; then
             echo "no_changes=true" >> $GITHUB_OUTPUT
             echo "summary=" >> $GITHUB_OUTPUT
           else
