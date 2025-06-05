@@ -22,6 +22,17 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Save PR Number to File
+        if: github.event_name == 'pull_request'
+        run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
+
+      - name: Upload PR Metadata
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-metadata
+          path: pr_number.txt        
+
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -103,10 +114,10 @@ jobs:
           -chdir="${{inputs.root_module_folder_relative_path}}" \
           plan \
           -input=false \
-          -out=tfplan | tee tfplan_output.txt
+          -out=tfplan
           
-          cat tfplan_output.txt | sed -r "s/\x1B\[[0-9;]*[mK]//g" > tfplan_output_cleaned.txt
-          if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output_cleaned.txt; then
+          terraform show -no-color tfplan > tfplan_output.txt
+          if grep -q "No changes. Your infrastructure matches the configuration." tfplan_output.txt; then
             echo "no_changes=true" >> $GITHUB_OUTPUT
             echo "summary=" >> $GITHUB_OUTPUT
           else

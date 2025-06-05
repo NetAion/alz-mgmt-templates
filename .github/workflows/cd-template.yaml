@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       terraform_action:
-        description: 'Terraform Action to perform'
+        description: 'Terraform Action to Perform'
         default: 'apply'
         type: string
       root_module_folder_relative_path:
@@ -138,3 +138,56 @@ jobs:
           -input=false \
           -auto-approve \
           tfplan
+
+      - name: Ensure jq is Installed
+        run: sudo apt-get update && sudo apt-get install -y jq
+      
+      - name: Get PLS ↔ FQDN Output (if exists)
+        id: tfout
+        run: |
+          output=$(terraform output -json pls_fqdn_pairs || echo "null")
+          echo "$output" > output.json
+          echo "has_output=$(jq 'type != \"null\"' output.json)" >> "$GITHUB_OUTPUT"
+
+      - name: Format PLS ↔ FQDN Table (if PLS output exists)
+        if: steps.tfout.outputs.has_output == 'true'
+        run: |
+          echo "### 🔗 FQDNs and Delivered Private Link Services" >> table.md
+          echo "| App. Connection String FQDN | Private Link Service Alias |" >> table.md
+          echo "|-----------------------------|----------------------------|" >> table.md
+
+          jq -r '
+            to_entries[] |  # e.g. lb01
+            .value | to_entries[] |  # e.g. db_agentcarter, {...}
+            "| \(.value.app_service_fqdn) | \(.value.pls_alias) |"
+          ' output.json >> table.md
+
+      - name: Upload PLS ↔ FQDN Table to Actions Summary (if table exists)
+        if: steps.tfout.outputs.has_output == 'true'
+        run: cat table.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Download PR Metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: pr-metadata
+
+      - name: Read PR Number
+        id: pr
+        run: echo "pr_number=$(cat pr_number.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Post PLS ↔ FQDN Table to PR as Comment (if table & PR exist)
+        if: steps.tfout.outputs.has_output == 'true' && steps.pr.outputs.pr_number != ''
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('table.md', 'utf8');
+            const pr = Number('${{ steps.pr.outputs.pr_number }}');
+
+            github.rest.issues.createComment({
+              issue_number: pr,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body
+            });
