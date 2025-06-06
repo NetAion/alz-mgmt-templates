@@ -60,9 +60,72 @@ jobs:
           -chdir="${{inputs.root_module_folder_relative_path}}" \
           validate
 
+  generate-script:
+    name: Generate FortiManager Package Script
+    needs: validate
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      script_changed: ${{ steps.script.outputs.script_changed }}
+      script_path: ${{ steps.meta.outputs.script_path }}
+      blob_url: ${{ steps.meta.outputs.blob_url }}
+
+    steps:
+      - name: Checkout PR Source Branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+          terraform_version: ${{ inputs.terraform_cli_version }}
+
+      - name: Render FortiManager Script from Terraform Console (no backend)
+        run: |
+          mkdir -p ./generated/fortimanager
+          mkdir -p ./scratch
+          cp *fmg* locals.connectivity*.tf *.tfvars* variables*.tf ./scratch/
+          cd scratch
+          terraform init -backend=false
+          terraform console <<EOF | awk '/^<<EOT$/ {flag=1; next} /^EOT$/ {flag=0} flag' > ../generated/fortimanager/fmg-azure-hub-package-for-pls.txt
+                    local.fmg_script
+          EOF
+          echo "✅ Script written to generated/fortimanager/fmg-azure-hub-package-for-pls.txt"
+
+      - name: Commit Script to PR Branch (if changed)
+        id: script
+        run: |
+          git config user.name "GitOps Bot"
+          git config user.email "gitops@example.com"
+          git add generated/fortimanager/fmg-azure-hub-package.txt
+          if git diff --staged --quiet; then
+            echo "script_changed=false" >> $GITHUB_OUTPUT          
+          else
+            echo "script_changed=true" >> $GITHUB_OUTPUT
+            git commit -m "Update FortiManager package script for proposed change"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
+
+      - name: Set Script Metadata Output
+        id: meta
+        run: |
+          echo "script_path=generated/fortimanager/fmg-azure-hub-package-for-pls.txt" >> $GITHUB_OUTPUT
+          echo "blob_url=https://github.com/${{ github.repository }}/blob/${{ github.head_ref }}/generated/fortimanager/fmg-azure-hub-package-for-pls.txt" >> $GITHUB_OUTPUT
+
+      - name: Upload FortiManager Script as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fmg-azure-hub-package
+          path: generated/fortimanager/fmg-azure-hub-package-for-pls.txt
+        
   plan:
     name: Validate Terraform Plan
-    needs: validate
+    needs: [validate, generate-script]
     runs-on: ubuntu-latest
     concurrency: mgmt2-tfstate
     environment: prod-ci-plan # GitHub free tier does not support environments in private repos, but it is needed for OIDC authentication
@@ -139,6 +202,8 @@ jobs:
           script: |
             const planOutcome = "${{ steps.plan.outcome }}";  
             const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
+            const blobUrl = "${{ needs.generate-script.outputs.blob_url }}";
+            const scriptChanged = "${{ needs.generate-script.outputs.script_changed }}" === 'true';
             let body = '';
 
             if (planOutcome === 'success') {
@@ -146,41 +211,47 @@ jobs:
                 body = `#### Terraform Plan 📖 \`${planOutcome}\`, no changes detected
             <details><summary>Please check the plan details:</summary>
 
-            - ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
+            ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
+
+            **Next Steps:**
             - 🔄 **Approve** this pull request to continue with the CD pipeline deployment (no changes will be applied).
             - If you are not happy with the plan, please comment on the pull request to discuss it.
             - See the CI action for more detailed logs if needed.
 
-            </details>
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            </details>`;
               } else {
                 const tfSummary = `${{ steps.plan.outputs.summary }}`;
                 body = `#### Terraform Plan 📖 \`${planOutcome}\`
             <details><summary>Please check the plan details:</summary>
 
-            - Changes to be deployed:
+            Changes to be deployed:
             \`\`\`
             ${tfSummary}
             \`\`\`
-            - Where:
-              - ✅ indicates a resource that will be created.
-              - ⚠️ indicates a resource that will be updated in place.
-              - ❌ indicates a resource that will be destroyed.
-            - 🔄 If you're happy with the plan, **approve the pull request** to deploy the changes to production. 
-            - If you're not happy with the plan, please comment on the pull request to discuss it.
-            - Note, there will be one further gate during the CD pipeline to confirm the plan before applying it.
-            - See the CI action for more detailed logs if needed.
-
+            Where:
+            - ✅ indicates a resource that will be created.
+            - ⚠️ indicates a resource that will be updated in place.
+            - ❌ indicates a resource that will be destroyed.
             </details>
 
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            **Next Steps:**
+            - 🔄 If you're happy with the plan, **approve the pull request** to deploy the changes to production. 
+            - If you're not happy with the plan, please comment on the pull request to discuss it.
+            - See the CI action for more detailed logs if needed.
+            - Note, there will be one further gate during the CD pipeline to confirm the plan before applying it.`;
               }
             } else {
               body = `#### Terraform Plan 📖 \`${planOutcome}\`
-
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            
+            **Next Steps:**
+            - ⚠️ Please review the CI action logs.`;
             };
+
+            if (scriptChanged) {
+              body += `\n- 🔄 [**Review** FortiManager package script changes](${blobUrl}) before manually uploading during the change window.`;
+            };
+            
+            body += `\n\n*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
