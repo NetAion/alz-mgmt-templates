@@ -100,15 +100,20 @@ jobs:
       - name: Commit Script to PR Branch (if changed)
         id: script
         run: |
-          git config user.name "GitOps Bot"
-          git config user.email "gitops@example.com"
-          git add generated/fortimanager/fmg-azure-hub-package.txt
-          if git diff --staged --quiet; then
-            echo "script_changed=false" >> $GITHUB_OUTPUT          
+          if [ -f generated/fortimanager/fmg-azure-hub-package-for-pls.txt ]; then
+            git config user.name "GitOps Bot"
+            git config user.email "gitops@example.com"
+            git add generated/fortimanager/fmg-azure-hub-package-for-pls.txt
+            if git diff --staged --quiet; then
+              echo "script_changed=false" >> $GITHUB_OUTPUT          
+            else
+              echo "script_changed=true" >> $GITHUB_OUTPUT
+              git commit -m "Update FortiManager package script for proposed change"
+              git push origin HEAD:${{ github.head_ref }}
+            fi
           else
-            echo "script_changed=true" >> $GITHUB_OUTPUT
-            git commit -m "Update FortiManager package script for proposed change"
-            git push origin HEAD:${{ github.head_ref }}
+            echo "🔄 Script file `generated/fortimanager/fmg-azure-hub-package-for-pls.txt` was not generated"
+            echo "script_changed=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Set Script Metadata Output
