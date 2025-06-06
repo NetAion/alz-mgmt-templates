@@ -209,20 +209,18 @@ jobs:
             if (planOutcome === 'success') {
               if (noChanges) {
                 body = `#### Terraform Plan 📖 \`${planOutcome}\`, no changes detected
-            <details><summary>Please check the plan details:</summary>
+            <details><summary>Click to expand and check the plan details:</summary>
 
             ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
 
             **Next Steps:**
             - 🔄 **Approve** this pull request to continue with the CD pipeline deployment (no changes will be applied).
             - If you are not happy with the plan, please comment on the pull request to discuss it.
-            - See the CI action for more detailed logs if needed.
-
-            </details>`;
+            - See the CI action for more detailed logs if needed.`;
               } else {
                 const tfSummary = `${{ steps.plan.outputs.summary }}`;
                 body = `#### Terraform Plan 📖 \`${planOutcome}\`
-            <details><summary>Please check the plan details:</summary>
+            <details><summary>Click to expand and check the plan details:</summary>
 
             Changes to be deployed:
             \`\`\`
@@ -232,7 +230,6 @@ jobs:
             - ✅ indicates a resource that will be created.
             - ⚠️ indicates a resource that will be updated in place.
             - ❌ indicates a resource that will be destroyed.
-            </details>
 
             **Next Steps:**
             - 🔄 If you're happy with the plan, **approve the pull request** to deploy the changes to production. 
@@ -242,16 +239,25 @@ jobs:
               }
             } else {
               body = `#### Terraform Plan 📖 \`${planOutcome}\`
+            <details><summary>Click to expand:</summary>
             
             **Next Steps:**
             - ⚠️ Please review the CI action logs.`;
-            };
+            }
 
+            // Append script notice if script changed
             if (scriptChanged) {
-              body += `\n- 🔄 [**Review** FortiManager package script changes](${blobUrl}) before manually uploading during the change window.`;
-            };
-            
-            body += `\n\n*Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+              body += `
+            - 🔄 [**Review** FortiManager package script changes](${blobUrl}) before manually uploading during the change window.
+            </details>`;
+            } else {
+              body += `
+            </details>`;
+            }
+
+            body += `
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
