@@ -244,7 +244,7 @@ jobs:
             if (scriptCommit) {
               const commitUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number}/commits/${scriptCommit}`;
               body += `
-            - 🔄 **Review** [changes to firewall package script `fmg-azure-hub-package-for-pls.txt`](${commitUrl}) before manually uploading to FortiManager and running during the change window.
+            - 🔄 **Review** changes to `fmg-azure-hub-package-for-pls.txt` [in this commit](${commitUrl}) before manually uploading to FortiManager and running during the change window.
             </details>`;
             } else {
               body += `
