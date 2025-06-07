@@ -70,8 +70,7 @@ jobs:
     env:
       FMG_SCRIPT: "generated/fortimanager/fmg-azure-hub-package-for-pls.txt"
     outputs:
-      script_changed: ${{ steps.commit.outputs.script_changed }}
-      script_diff_hash: ${{ steps.commit.outputs.script_diff_hash }}
+      script_commit_sha: ${{ steps.commit.outputs.script_commit_sha }}
 
     steps:
       - name: Checkout PR Source Branch
@@ -105,21 +104,14 @@ jobs:
             git config user.name "GitOps Bot"
             git config user.email "gitops@example.com"
             git add "$FMG_SCRIPT"
-            if git diff --cached --quiet; then
-              echo "script_changed=false" >> $GITHUB_OUTPUT          
-            else
-              echo "script_changed=true" >> $GITHUB_OUTPUT
+            if ! git diff --cached --quiet; then
               git commit -m "chore(fortimanager): update Azure-Hub package script for proposed change"
               git push origin HEAD:${{ github.head_ref }}
+              echo "script_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
             fi
           else
-            echo "🔄 Script file `${FMG_SCRIPT}` was not generated"
-            echo "script_changed=false" >> $GITHUB_OUTPUT
+            echo "🔄 Script file \`${FMG_SCRIPT}\` was not generated"
           fi
-
-          # GitHub's file-level diff anchors use the SHA-256 of the relative path
-          hash=$(echo -n "${FMG_SCRIPT}" | sha256sum | awk '{print $1}')
-          echo "script_diff_hash=$hash" >> $GITHUB_OUTPUT
 
       - name: Upload FortiManager Script as Artifact
         uses: actions/upload-artifact@v4
@@ -206,9 +198,7 @@ jobs:
           script: |
             const planOutcome = "${{ steps.plan.outcome }}";  
             const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
-            const fileHash = "${{ needs.generate-script.outputs.script_diff_hash }}";
-            const diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number}/files#diff-${fileHash}`;
-            const scriptChanged = "${{ needs.generate-script.outputs.script_changed }}" === 'true';
+            const scriptCommit = "${{ needs.generate-script.outputs.script_commit_sha }}";
             let body = '';
 
             if (planOutcome === 'success') {
@@ -251,9 +241,10 @@ jobs:
             }
 
             // Append script notice if script changed
-            if (scriptChanged) {
+            if (scriptCommit) {
+              const commitUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number}/commits/${scriptCommit}`;
               body += `
-            - 🔄 **Review** [changes to firewall package script fmg-azure-hub-package-for-pls.txt](${diffUrl}) before manually uploading to FortiManager and running during the change window.
+            - 🔄 **Review** [changes to firewall package script `fmg-azure-hub-package-for-pls.txt`](${commitUrl}) before manually uploading to FortiManager and running during the change window.
             </details>`;
             } else {
               body += `
