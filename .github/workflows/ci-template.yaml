@@ -253,7 +253,7 @@ jobs:
             // Append script notice if script changed
             if (scriptChanged) {
               body += `
-            - 🔄 **Review** [Azure-Hub firewall package script changes](${diffUrl}) before manually uploading to FortiManager and running during the change window.
+            - 🔄 **Review** [changes to firewall package script fmg-azure-hub-package-for-pls.txt](${diffUrl}) before manually uploading to FortiManager and running during the change window.
             </details>`;
             } else {
               body += `
