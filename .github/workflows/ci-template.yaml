@@ -26,12 +26,15 @@ jobs:
         if: github.event_name == 'pull_request'
         run: echo "${{ github.event.pull_request.number }}" > pr_number.txt
 
+      # Make `github.event.pull_request.number` available to the
+      # subsequent CD workflow using the merge commit SHA as a
+      # unique key.
       - name: Upload PR Metadata
         if: github.event_name == 'pull_request'
         uses: actions/upload-artifact@v4
         with:
-          name: pr-metadata
-          path: pr_number.txt        
+          name: pr-metadata-${{ github.event.pull_request.merge_commit_sha }}
+          path: pr_number.txt
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
@@ -61,18 +64,23 @@ jobs:
           validate
 
   generate-script:
-    name: Generate FortiManager Package Script
+    name: Generate FortiManager Package Script for Review
     needs: validate
     if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
     env:
-      FMG_SCRIPT: "generated/fortimanager/fmg-azure-hub-package-for-pls.txt"
+      FMG_SCRIPT: "fmg-azure-hub-package-for-pls.txt"
+      FMG_FOLDER: "generated/fortimanager/"
     outputs:
-      script_commit_sha: ${{ steps.commit.outputs.script_commit_sha }}
+      commit_sha_path: ${{ steps.commit.outputs.commit_sha_path }}
 
     steps:
+      - name: Set Relative Script Path
+        run: |
+          echo "FMG_PATH=${FMG_FOLDER}${FMG_SCRIPT}" >> $GITHUB_ENV
+
       - name: Checkout PR Source Branch
         uses: actions/checkout@v4
         with:
@@ -87,37 +95,42 @@ jobs:
 
       - name: Render FortiManager Script from Terraform Console (no backend)
         run: |
-          mkdir -p ./generated/fortimanager
+          mkdir -p ./$FMG_FOLDER
           mkdir -p ./scratch
           cp *fmg* locals.connectivity*.tf *.tfvars* variables*.tf ./scratch/
           cd scratch
           terraform init -backend=false
-          terraform console <<EOF | awk '/^<<EOT$/ {flag=1; next} /^EOT$/ {flag=0} flag' > ../$FMG_SCRIPT
+          terraform console <<EOF | awk '/^<<EOT$/ {flag=1; next} /^EOT$/ {flag=0} flag' > ../$FMG_PATH
                     local.fmg_script
           EOF
-          echo "✅ Script written to $FMG_SCRIPT"
+          echo "✅ Script written to $FMG_PATH"
 
       - name: Commit Script to PR Branch (if changed)
         id: commit
         run: |
-          if [ -f "$FMG_SCRIPT" ]; then
+          if [ -f "$FMG_PATH" ]; then
             git config user.name "GitOps Bot"
             git config user.email "gitops@example.com"
-            git add "$FMG_SCRIPT"
+            git add "$FMG_PATH"
             if ! git diff --cached --quiet; then
               git commit -m "chore(fortimanager): update Azure-Hub package script for proposed change"
               git push origin HEAD:${{ github.head_ref }}
-              echo "script_commit_sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+              echo "script_changed=true" >> $GITHUB_OUTPUT
+              echo "$(git rev-parse HEAD)" > ${FMG_FOLDER}/commit_sha.txt
             fi
           else
-            echo "🔄 Script file \`${FMG_SCRIPT}\` was not generated"
+            echo "🔄 Script file \`${FMG_PATH}\` was not generated"
           fi
-
-      - name: Upload FortiManager Script as Artifact
+          echo "commit_sha_path=${FMG_FOLDER}/commit_sha.txt" >> $GITHUB_OUTPUT
+        
+      # Include `commit_sha.txt` in the artifact folder so it persists
+      # across workflow runs
+      - name: Upload FortiManager Script and Metadata
+        if: steps.commit.outputs.script_changed == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: fmg-azure-hub-package-for-pls
-          path: ${{ env.FMG_SCRIPT }}
+          name: fmg-script-${{ github.event.pull_request.number }}
+          path: ${{ env.FMG_FOLDER }}
         
   plan:
     name: Validate Terraform Plan
@@ -190,6 +203,19 @@ jobs:
             echo "EOF" >> $GITHUB_OUTPUT
           fi
 
+      - name: Download FortiManager Script and Metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: fmg-script-${{ github.event.pull_request.number }}
+
+      - name: Read Script Commit SHA from Artifact
+        id: scriptmeta
+        run: |
+          COMMIT_SHA_PATH=${{ needs.generate-script.outputs.commit_sha_path }}
+          if [ -f $COMMIT_SHA_PATH ]; then
+            echo "commit_sha=$(cat ${COMMIT_SHA_PATH})" >> $GITHUB_OUTPUT
+          fi
+        
       - name: Update Pull Request
         if: (success() || failure()) && github.event_name == 'pull_request'
         uses: actions/github-script@v6
@@ -198,7 +224,7 @@ jobs:
           script: |
             const planOutcome = "${{ steps.plan.outcome }}";  
             const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
-            const scriptCommit = "${{ needs.generate-script.outputs.script_commit_sha }}";
+            const scriptCommit = "${{ steps.scriptmeta.outputs.commit_sha }}";
             let body = '';
 
             if (planOutcome === 'success') {

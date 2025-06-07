@@ -166,10 +166,12 @@ jobs:
         if: steps.tfout.outputs.has_output == 'true'
         run: cat table.md >> $GITHUB_STEP_SUMMARY
 
+      # Retrieves the PR number saved during the CI workflow, enabling this push-triggered
+      # CD workflow to comment back on the correct pull request.
       - name: Download PR Metadata
         uses: actions/download-artifact@v4
         with:
-          name: pr-metadata
+          name: pr-metadata-${{ github.sha }}
 
       - name: Read PR Number
         id: pr
