@@ -72,14 +72,14 @@ jobs:
       contents: write
     env:
       FMG_SCRIPT: "fmg-azure-hub-package-for-pls.txt"
-      FMG_FOLDER: "generated/fortimanager/"
+      FMG_FOLDER: "generated/fortimanager"
     outputs:
       commit_sha_path: ${{ steps.commit.outputs.commit_sha_path }}
 
     steps:
       - name: Set Relative Script Path
         run: |
-          echo "FMG_PATH=${FMG_FOLDER}${FMG_SCRIPT}" >> $GITHUB_ENV
+          echo "FMG_PATH=${FMG_FOLDER}/${FMG_SCRIPT}" >> $GITHUB_ENV
 
       - name: Checkout PR Source Branch
         uses: actions/checkout@v4
