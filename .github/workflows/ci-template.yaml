@@ -67,10 +67,11 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    env:
+      FMG_SCRIPT: "generated/fortimanager/fmg-azure-hub-package-for-pls.txt"
     outputs:
-      script_changed: ${{ steps.script.outputs.script_changed }}
-      script_path: ${{ steps.meta.outputs.script_path }}
-      blob_url: ${{ steps.meta.outputs.blob_url }}
+      script_changed: ${{ steps.commit.outputs.script_changed }}
+      script_diff_hash: ${{ steps.commit.outputs.script_diff_hash }}
 
     steps:
       - name: Checkout PR Source Branch
@@ -92,41 +93,39 @@ jobs:
           cp *fmg* locals.connectivity*.tf *.tfvars* variables*.tf ./scratch/
           cd scratch
           terraform init -backend=false
-          terraform console <<EOF | awk '/^<<EOT$/ {flag=1; next} /^EOT$/ {flag=0} flag' > ../generated/fortimanager/fmg-azure-hub-package-for-pls.txt
+          terraform console <<EOF | awk '/^<<EOT$/ {flag=1; next} /^EOT$/ {flag=0} flag' > ../$FMG_SCRIPT
                     local.fmg_script
           EOF
-          echo "✅ Script written to generated/fortimanager/fmg-azure-hub-package-for-pls.txt"
+          echo "✅ Script written to $FMG_SCRIPT"
 
       - name: Commit Script to PR Branch (if changed)
-        id: script
+        id: commit
         run: |
-          if [ -f generated/fortimanager/fmg-azure-hub-package-for-pls.txt ]; then
+          if [ -f "$FMG_SCRIPT" ]; then
             git config user.name "GitOps Bot"
             git config user.email "gitops@example.com"
-            git add generated/fortimanager/fmg-azure-hub-package-for-pls.txt
-            if git diff --staged --quiet; then
+            git add "$FMG_SCRIPT"
+            if git diff --cached --quiet; then
               echo "script_changed=false" >> $GITHUB_OUTPUT          
             else
               echo "script_changed=true" >> $GITHUB_OUTPUT
-              git commit -m "Update FortiManager package script for proposed change"
+              git commit -m "chore(fortimanager): update Azure-Hub package script for proposed change"
               git push origin HEAD:${{ github.head_ref }}
             fi
           else
-            echo "🔄 Script file `generated/fortimanager/fmg-azure-hub-package-for-pls.txt` was not generated"
+            echo "🔄 Script file `${FMG_SCRIPT}` was not generated"
             echo "script_changed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Set Script Metadata Output
-        id: meta
-        run: |
-          echo "script_path=generated/fortimanager/fmg-azure-hub-package-for-pls.txt" >> $GITHUB_OUTPUT
-          echo "blob_url=https://github.com/${{ github.repository }}/blob/${{ github.head_ref }}/generated/fortimanager/fmg-azure-hub-package-for-pls.txt" >> $GITHUB_OUTPUT
+          # GitHub's file-level diff anchors use the SHA-256 of the relative path
+          hash=$(echo -n "${FMG_SCRIPT}" | sha256sum | awk '{print $1}')
+          echo "script_diff_hash=$hash" >> $GITHUB_OUTPUT
 
       - name: Upload FortiManager Script as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fmg-azure-hub-package
-          path: generated/fortimanager/fmg-azure-hub-package-for-pls.txt
+          name: fmg-azure-hub-package-for-pls
+          path: ${{ env.FMG_SCRIPT }}
         
   plan:
     name: Validate Terraform Plan
@@ -207,53 +206,54 @@ jobs:
           script: |
             const planOutcome = "${{ steps.plan.outcome }}";  
             const noChanges = "${{ steps.plan.outputs.no_changes }}" === 'true';
-            const blobUrl = "${{ needs.generate-script.outputs.blob_url }}";
+            const fileHash = "${{ needs.generate-script.outputs.script_diff_hash }}";
+            const diffUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/pull/${context.issue.number}/files#diff-${fileHash}`;
             const scriptChanged = "${{ needs.generate-script.outputs.script_changed }}" === 'true';
             let body = '';
 
             if (planOutcome === 'success') {
               if (noChanges) {
-                body = `#### Terraform Plan 📖 \`${planOutcome}\`, no changes detected
-            <details><summary>Click to expand and check the plan details:</summary>
+                body = `### Terraform Plan 📖 \`${planOutcome}\`, no changes detected
+            <details><summary>Click to expand and check the plan details...</summary>
 
             ✅ Terraform has compared your real infrastructure against your configuration and found no differences.
 
-            **Next Steps:**
+            #### Next Steps
             - 🔄 **Approve** this pull request to continue with the CD pipeline deployment (no changes will be applied).
-            - If you are not happy with the plan, please comment on the pull request to discuss it.
+            - If you're not happy with the plan, please comment on the pull request to discuss it.
             - See the CI action for more detailed logs if needed.`;
               } else {
                 const tfSummary = `${{ steps.plan.outputs.summary }}`;
-                body = `#### Terraform Plan 📖 \`${planOutcome}\`
-            <details><summary>Click to expand and check the plan details:</summary>
+                body = `### Terraform Plan \`${planOutcome}\`
+            <details><summary>📋 Click to expand and check the plan...</summary>
 
-            Changes to be deployed:
+            #### Proposed Changes
             \`\`\`
             ${tfSummary}
             \`\`\`
-            Where:
-            - ✅ indicates a resource that will be created.
-            - ⚠️ indicates a resource that will be updated in place.
-            - ❌ indicates a resource that will be destroyed.
+            - Where:
+              - ✅ indicates a resource that will be created.
+              - ⚠️ indicates a resource that will be updated in place.
+              - ❌ indicates a resource that will be destroyed.
 
-            **Next Steps:**
-            - 🔄 If you're happy with the plan, **approve the pull request** to deploy the changes to production. 
+            #### Next Steps
+            - 🔄 **Approve** this pull request to continue and deploy the changes to production. 
             - If you're not happy with the plan, please comment on the pull request to discuss it.
             - See the CI action for more detailed logs if needed.
             - Note, there will be one further gate during the CD pipeline to confirm the plan before applying it.`;
               }
             } else {
-              body = `#### Terraform Plan 📖 \`${planOutcome}\`
-            <details><summary>Click to expand:</summary>
+              body = `### Terraform Plan \`${planOutcome}\`
+            <details><summary>📋 Click to expand...</summary>
             
-            **Next Steps:**
+            #### Next Steps
             - ⚠️ Please review the CI action logs.`;
             }
 
             // Append script notice if script changed
             if (scriptChanged) {
               body += `
-            - 🔄 [**Review** FortiManager package script changes](${blobUrl}) before manually uploading during the change window.
+            - 🔄 **Review** [Azure-Hub firewall package script changes](${diffUrl}) before manually uploading to FortiManager and running during the change window.
             </details>`;
             } else {
               body += `
